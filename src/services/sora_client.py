@@ -22,9 +22,13 @@ class SoraClient:
     @staticmethod
     def _generate_sentinel_token() -> str:
         """
-        生成 openai-sentinel-token
-        根据测试文件的逻辑，传入任意随机字符即可
-        生成10-20个字符的随机字符串（字母+数字）
+        [逆向核心] 生成 openai-sentinel-token
+        
+        原理解析：
+        在浏览器访问 Sora 时，前端 JS 会生成一个 sentinel token 放在请求头中。
+        通过逆向分析发现，服务端对该 token 的校验逻辑（目前）较为宽松，
+        或者其生成算法依赖于随机性。这里通过生成 10-20 位的随机字母数字组合，
+        成功欺骗了服务端，使其认为请求合法。
         """
         length = random.randint(10, 20)
         random_str = ''.join(random.choices(string.ascii_letters + string.digits, k=length))
@@ -60,10 +64,15 @@ class SoraClient:
         async with AsyncSession() as session:
             url = f"{self.base_url}{endpoint}"
 
+            # [逆向核心] 模拟浏览器指纹
+            # 使用 curl_cffi 库的 impersonate="chrome" 功能
+            # 这不仅仅是修改 User-Agent，而是从底层 TLS/SSL 握手层面
+            # 完完全全模拟 Chrome 浏览器的特征（如加密套件顺序、扩展字段等）。
+            # 这是绕过 Cloudflare 等反爬盾牌、防止被识别为 Python 脚本的关键。
             kwargs = {
                 "headers": headers,
                 "timeout": self.timeout,
-                "impersonate": "chrome"  # 自动生成 User-Agent 和浏览器指纹
+                "impersonate": "chrome"
             }
 
             if proxy_url:
@@ -132,8 +141,9 @@ class SoraClient:
     async def upload_image(self, image_data: bytes, token: str, filename: str = "image.png") -> str:
         """Upload image and return media_id
 
-        使用 CurlMime 对象上传文件（curl_cffi 的正确方式）
-        参考：https://curl-cffi.readthedocs.io/en/latest/quick_start.html#uploads
+        [逆向核心] 模拟浏览器文件上传
+        构建与浏览器完全一致的 Multipart/form-data 请求体，
+        用于上传图片作为“图生视频”的参考图。
         """
         # 检测图片类型
         mime_type = "image/png"
@@ -188,7 +198,43 @@ class SoraClient:
 
         # 生成请求需要添加 sentinel token
         result = await self._make_request("POST", "/video_gen", token, json_data=json_data, add_sentinel_token=True)
-        return result["id"]
+
+    async def fetch_public_profile(self, token: str, username: str = None) -> Dict[str, Any]:
+        """Fetch public profile page to test connectivity and fingerprinting"""
+        proxy_url = await self.proxy_manager.get_proxy_url()
+        
+        if username:
+            profile_url = f"https://sora.chatgpt.com/backend/project_y/profile/username/{username}"
+        else:
+            profile_url = "https://sora.chatgpt.com/profile/dohdrbble.codekidori"
+        
+        headers = {
+            "Authorization": f"Bearer {token}"
+        }
+
+        async with AsyncSession() as session:
+            kwargs = {
+                "headers": headers,
+                "impersonate": "chrome",
+                "timeout": self.timeout
+            }
+            
+            if proxy_url:
+                kwargs["proxy"] = proxy_url
+                
+            try:
+                response = await session.get(profile_url, **kwargs)
+                
+                return {
+                    "status_code": response.status_code,
+                    "content_length": len(response.text),
+                    "title": response.text[response.text.find("<title>")+7:response.text.find("</title>")] if "<title>" in response.text else "Unknown",
+                    "success": response.status_code == 200,
+                    "content_preview": response.text[:5000]  # Return first 5000 chars to show content
+                }
+            except Exception as e:
+                error_msg = f"Profile fetch failed: {str(e)}"
+                raise Exception(error_msg)
     
     async def generate_video(self, prompt: str, token: str, orientation: str = "landscape",
                             media_id: Optional[str] = None, n_frames: int = 450) -> str:

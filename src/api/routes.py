@@ -42,6 +42,18 @@ def _extract_remix_id(text: str) -> str:
 
     return ""
 
+@router.get("/v1/profile")
+async def fetch_profile(username: str = None, api_key: str = Depends(verify_api_key_header)):
+    """Fetch public profile for connectivity check"""
+    try:
+        if not generation_handler:
+            raise HTTPException(status_code=503, detail="Service not initialized")
+            
+        result = await generation_handler.fetch_profile(username=username)
+        return JSONResponse(content=result)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 @router.get("/v1/models")
 async def list_models(api_key: str = Depends(verify_api_key_header)):
     """List available models"""
