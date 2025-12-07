@@ -62,6 +62,7 @@ class AddTokenRequest(BaseModel):
     token: str  # Access Token (AT)
     st: Optional[str] = None  # Session Token (optional, for storage)
     rt: Optional[str] = None  # Refresh Token (optional, for storage)
+    client_id: Optional[str] = None  # Client ID (optional)
     remark: Optional[str] = None
     image_enabled: bool = True  # Enable image generation
     video_enabled: bool = True  # Enable video generation
@@ -81,6 +82,7 @@ class UpdateTokenRequest(BaseModel):
     token: Optional[str] = None  # Access Token
     st: Optional[str] = None
     rt: Optional[str] = None
+    client_id: Optional[str] = None  # Client ID
     remark: Optional[str] = None
     image_enabled: Optional[bool] = None  # Enable image generation
     video_enabled: Optional[bool] = None  # Enable video generation
@@ -169,6 +171,7 @@ async def get_tokens(token: str = Depends(verify_admin_token)) -> List[dict]:
             "token": token.token,  # 完整的Access Token
             "st": token.st,  # 完整的Session Token
             "rt": token.rt,  # 完整的Refresh Token
+            "client_id": token.client_id,  # Client ID
             "email": token.email,
             "name": token.name,
             "remark": token.remark,
@@ -210,6 +213,7 @@ async def add_token(request: AddTokenRequest, token: str = Depends(verify_admin_
             token_value=request.token,
             st=request.st,
             rt=request.rt,
+            client_id=request.client_id,
             remark=request.remark,
             update_if_exists=False,
             image_enabled=request.image_enabled,
@@ -412,6 +416,7 @@ async def update_token(
             token=request.token,
             st=request.st,
             rt=request.rt,
+            client_id=request.client_id,
             remark=request.remark,
             image_enabled=request.image_enabled,
             video_enabled=request.video_enabled,

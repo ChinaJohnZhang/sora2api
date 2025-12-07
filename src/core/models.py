@@ -11,6 +11,7 @@ class Token(BaseModel):
     name: Optional[str] = ""
     st: Optional[str] = None
     rt: Optional[str] = None
+    client_id: Optional[str] = None
     remark: Optional[str] = None
     expiry_time: Optional[datetime] = None
     is_active: bool = True
@@ -43,12 +44,13 @@ class TokenStats(BaseModel):
     token_id: int
     image_count: int = 0
     video_count: int = 0
-    error_count: int = 0
+    error_count: int = 0  # Historical total errors (never reset)
     last_error_at: Optional[datetime] = None
     today_image_count: int = 0
     today_video_count: int = 0
     today_error_count: int = 0
     today_date: Optional[str] = None
+    consecutive_error_count: int = 0  # Consecutive errors for auto-disable
 
 class Task(BaseModel):
     """Task model"""

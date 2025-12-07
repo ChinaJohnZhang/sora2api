@@ -149,10 +149,19 @@ class TokenManager:
                     "subscription_end": ""
                 }
             else:
-                error_msg = f"Failed to get subscription info: {response.status_code}"
-                print(f"❌ {error_msg}")
-                print(f"📄 响应内容: {response.text[:500]}")
-                raise Exception(error_msg)
+                print(f"❌ Failed to get subscription info: {response.status_code}")
+                print(f"📄 响应内容: {response.text}")
+
+                # Check for token_expired error
+                try:
+                    error_data = response.json()
+                    error_info = error_data.get("error", {})
+                    if error_info.get("code") == "token_expired":
+                        raise Exception(f"Token已过期: {error_info.get('message', 'Token expired')}")
+                except ValueError:
+                    pass
+
+                raise Exception(f"Failed to get subscription info: {response.status_code}")
 
     async def get_sora2_invite_code(self, access_token: str) -> dict:
         """Get Sora2 invite code"""
@@ -193,20 +202,62 @@ class TokenManager:
                     "total_count": data.get("total_count", 0)
                 }
             else:
-                # Check if it's 401 unauthorized
+                print(f"❌ 获取Sora2邀请码失败: {response.status_code}")
+                print(f"📄 响应内容: {response.text}")
+
+                # Check for specific errors
                 try:
                     error_data = response.json()
-                    if error_data.get("error", {}).get("message", "").startswith("401"):
-                        print(f"⚠️  Token不支持Sora2")
+                    error_info = error_data.get("error", {})
+
+                    # Check for unsupported_country_code
+                    if error_info.get("code") == "unsupported_country_code":
+                        country = error_info.get("param", "未知")
+                        raise Exception(f"Sora在您的国家/地区不可用 ({country}): {error_info.get('message', '')}")
+
+                    # Check if it's 401 unauthorized (token doesn't support Sora2)
+                    if response.status_code == 401 and "Unauthorized" in error_info.get("message", ""):
+                        print(f"⚠️  Token不支持Sora2，尝试激活...")
+
+                        # Try to activate Sora2
+                        try:
+                            activate_response = await session.get(
+                                "https://sora.chatgpt.com/backend/m/bootstrap",
+                                **kwargs
+                            )
+
+                            if activate_response.status_code == 200:
+                                print(f"✅ Sora2激活请求成功，重新获取邀请码...")
+
+                                # Retry getting invite code
+                                retry_response = await session.get(
+                                    "https://sora.chatgpt.com/backend/project_y/invite/mine",
+                                    **kwargs
+                                )
+
+                                if retry_response.status_code == 200:
+                                    retry_data = retry_response.json()
+                                    print(f"✅ Sora2激活成功！邀请码: {retry_data}")
+                                    return {
+                                        "supported": True,
+                                        "invite_code": retry_data.get("invite_code"),
+                                        "redeemed_count": retry_data.get("redeemed_count", 0),
+                                        "total_count": retry_data.get("total_count", 0)
+                                    }
+                                else:
+                                    print(f"⚠️  激活后仍无法获取邀请码: {retry_response.status_code}")
+                            else:
+                                print(f"⚠️  Sora2激活失败: {activate_response.status_code}")
+                        except Exception as activate_e:
+                            print(f"⚠️  Sora2激活过程出错: {activate_e}")
+
                         return {
                             "supported": False,
                             "invite_code": None
                         }
-                except:
+                except ValueError:
                     pass
 
-                print(f"❌ 获取Sora2邀请码失败: {response.status_code}")
-                print(f"📄 响应内容: {response.text[:500]}")
                 return {
                     "supported": False,
                     "invite_code": None
@@ -495,9 +546,18 @@ class TokenManager:
                 debug_logger.log_info(f"[ST_TO_AT] 🔴 异常: {str(e)}")
                 raise
     
-    async def rt_to_at(self, refresh_token: str) -> dict:
-        """Convert Refresh Token to Access Token"""
+    async def rt_to_at(self, refresh_token: str, client_id: Optional[str] = None) -> dict:
+        """Convert Refresh Token to Access Token
+
+        Args:
+            refresh_token: Refresh Token
+            client_id: Client ID (optional, uses default if not provided)
+        """
+        # Use provided client_id or default
+        effective_client_id = client_id or "app_LlGpXReQgckcGGUo2JrYvtJK"
+
         debug_logger.log_info(f"[RT_TO_AT] 开始转换 Refresh Token 为 Access Token...")
+        debug_logger.log_info(f"[RT_TO_AT] 使用 Client ID: {effective_client_id[:20]}...")
         proxy_url = await self.proxy_manager.get_proxy_url()
 
         async with AsyncSession() as session:
@@ -509,7 +569,7 @@ class TokenManager:
             kwargs = {
                 "headers": headers,
                 "json": {
-                    "client_id": "app_LlGpXReQgckcGGUo2JrYvtJK",
+                    "client_id": effective_client_id,
                     "grant_type": "refresh_token",
                     "redirect_uri": "com.openai.chat://auth0.openai.com/ios/com.openai.chat/callback",
                     "refresh_token": refresh_token
@@ -582,6 +642,7 @@ class TokenManager:
     async def add_token(self, token_value: str,
                        st: Optional[str] = None,
                        rt: Optional[str] = None,
+                       client_id: Optional[str] = None,
                        remark: Optional[str] = None,
                        update_if_exists: bool = False,
                        image_enabled: bool = True,
@@ -594,6 +655,7 @@ class TokenManager:
             token_value: Access Token
             st: Session Token (optional)
             rt: Refresh Token (optional)
+            client_id: Client ID (optional)
             remark: Remark (optional)
             update_if_exists: If True, update existing token instead of raising error
             image_enabled: Enable image generation (default: True)
@@ -649,6 +711,10 @@ class TokenManager:
                 from dateutil import parser
                 subscription_end = parser.parse(sub_info["subscription_end"])
         except Exception as e:
+            error_msg = str(e)
+            # Re-raise if it's a critical error (token expired)
+            if "Token已过期" in error_msg:
+                raise
             # If API call fails, subscription info will be None
             print(f"Failed to get subscription info: {e}")
 
@@ -675,6 +741,10 @@ class TokenManager:
                 except Exception as e:
                     print(f"Failed to get Sora2 remaining count: {e}")
         except Exception as e:
+            error_msg = str(e)
+            # Re-raise if it's a critical error (unsupported country)
+            if "Sora在您的国家/地区不可用" in error_msg:
+                raise
             # If API call fails, Sora2 info will be None
             print(f"Failed to get Sora2 info: {e}")
 
@@ -721,6 +791,7 @@ class TokenManager:
             name=name,
             st=st,
             rt=rt,
+            client_id=client_id,
             remark=remark,
             expiry_time=expiry_time,
             is_active=True,
@@ -805,12 +876,13 @@ class TokenManager:
                           token: Optional[str] = None,
                           st: Optional[str] = None,
                           rt: Optional[str] = None,
+                          client_id: Optional[str] = None,
                           remark: Optional[str] = None,
                           image_enabled: Optional[bool] = None,
                           video_enabled: Optional[bool] = None,
                           image_concurrency: Optional[int] = None,
                           video_concurrency: Optional[int] = None):
-        """Update token (AT, ST, RT, remark, image_enabled, video_enabled, concurrency limits)"""
+        """Update token (AT, ST, RT, client_id, remark, image_enabled, video_enabled, concurrency limits)"""
         # If token (AT) is updated, decode JWT to get new expiry time
         expiry_time = None
         if token:
@@ -820,7 +892,7 @@ class TokenManager:
             except Exception:
                 pass  # If JWT decode fails, keep expiry_time as None
 
-        await self.db.update_token(token_id, token=token, st=st, rt=rt, remark=remark, expiry_time=expiry_time,
+        await self.db.update_token(token_id, token=token, st=st, rt=rt, client_id=client_id, remark=remark, expiry_time=expiry_time,
                                    image_enabled=image_enabled, video_enabled=video_enabled,
                                    image_concurrency=image_concurrency, video_concurrency=video_concurrency)
 
@@ -913,12 +985,12 @@ class TokenManager:
     async def record_error(self, token_id: int):
         """Record token error"""
         await self.db.increment_error_count(token_id)
-        
+
         # Check if should ban
         stats = await self.db.get_token_stats(token_id)
         admin_config = await self.db.get_admin_config()
-        
-        if stats and stats.error_count >= admin_config.error_ban_threshold:
+
+        if stats and stats.consecutive_error_count >= admin_config.error_ban_threshold:
             await self.db.update_token_status(token_id, False)
     
     async def record_success(self, token_id: int, is_video: bool = False):
@@ -1037,7 +1109,7 @@ class TokenManager:
             if not new_at and token_data.rt:
                 try:
                     debug_logger.log_info(f"[AUTO_REFRESH] 📝 Token {token_id}: 尝试使用 RT 刷新...")
-                    result = await self.rt_to_at(token_data.rt)
+                    result = await self.rt_to_at(token_data.rt, client_id=token_data.client_id)
                     new_at = result.get("access_token")
                     new_rt = result.get("refresh_token", token_data.rt)  # RT might be updated
                     refresh_method = "RT"
