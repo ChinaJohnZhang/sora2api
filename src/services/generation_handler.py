@@ -548,6 +548,51 @@ class GenerationHandler:
                         # Find matching task in drafts
                         for item in items:
                             if item.get("task_id") == task_id:
+                                # Check for content violation
+                                kind = item.get("kind")
+                                reason_str = item.get("reason_str") or item.get("markdown_reason_str")
+                                url = item.get("url") or item.get("downloadable_url")
+                                debug_logger.log_info(f"Found task {task_id} in drafts with kind: {kind}, reason_str: {reason_str}, has_url: {bool(url)}")
+
+                                # Check if content violates policy
+                                # Violation indicators: kind is violation type, or has reason_str, or missing video URL
+                                is_violation = (
+                                    kind == "sora_content_violation" or
+                                    (reason_str and reason_str.strip()) or  # Has non-empty reason
+                                    not url  # No video URL means generation failed
+                                )
+
+                                if is_violation:
+                                    error_message = f"Content policy violation: {reason_str or 'Content violates guardrails'}"
+
+                                    debug_logger.log_error(
+                                        error_message=error_message,
+                                        status_code=400,
+                                        response_text=json.dumps(item)
+                                    )
+
+                                    # Update task status
+                                    await self.db.update_task(task_id, "failed", 0, error_message=error_message)
+
+                                    # Release resources
+                                    if token_id and self.concurrency_manager:
+                                        await self.concurrency_manager.release_video(token_id)
+                                        debug_logger.log_info(f"Released concurrency slot for token {token_id} due to content violation")
+
+                                    # Return error in stream format
+                                    if stream:
+                                        yield self._format_stream_chunk(
+                                            reasoning_content=f"**Content Policy Violation**\n\n{reason_str}\n"
+                                        )
+                                        yield self._format_stream_chunk(
+                                            content=f"❌ 生成失败: {reason_str}",
+                                            finish_reason="STOP"
+                                        )
+                                        yield "data: [DONE]\n\n"
+
+                                    # Stop polling immediately
+                                    return
+
                                 # Check if watermark-free mode is enabled
                                 watermark_free_config = await self.db.get_watermark_free_config()
                                 watermark_free_enabled = watermark_free_config.watermark_free_enabled
