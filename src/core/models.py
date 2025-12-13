@@ -82,6 +82,7 @@ class AdminConfig(BaseModel):
     id: int = 1
     admin_username: str  # Read from database, initialized from setting.toml on first startup
     admin_password: str  # Read from database, initialized from setting.toml on first startup
+    api_key: str  # Read from database, initialized from setting.toml on first startup
     error_ban_threshold: int = 3
     updated_at: Optional[datetime] = None
 

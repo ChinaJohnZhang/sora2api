@@ -53,20 +53,22 @@ class Database:
             # Get admin credentials from config_dict if provided, otherwise use defaults
             admin_username = "admin"
             admin_password = "admin"
+            api_key = "han1234"
             error_ban_threshold = 3
 
             if config_dict:
                 global_config = config_dict.get("global", {})
                 admin_username = global_config.get("admin_username", "admin")
                 admin_password = global_config.get("admin_password", "admin")
+                api_key = global_config.get("api_key", "han1234")
 
                 admin_config = config_dict.get("admin", {})
                 error_ban_threshold = admin_config.get("error_ban_threshold", 3)
 
             await db.execute("""
-                INSERT INTO admin_config (id, admin_username, admin_password, error_ban_threshold)
-                VALUES (1, ?, ?, ?)
-            """, (admin_username, admin_password, error_ban_threshold))
+                INSERT INTO admin_config (id, admin_username, admin_password, api_key, error_ban_threshold)
+                VALUES (1, ?, ?, ?, ?)
+            """, (admin_username, admin_password, api_key, error_ban_threshold))
 
         # Ensure proxy_config has a row
         cursor = await db.execute("SELECT COUNT(*) FROM proxy_config")
@@ -224,6 +226,7 @@ class Database:
                 columns_to_add = [
                     ("admin_username", "TEXT DEFAULT 'admin'"),
                     ("admin_password", "TEXT DEFAULT 'admin'"),
+                    ("api_key", "TEXT DEFAULT 'han1234'"),
                 ]
 
                 for col_name, col_type in columns_to_add:
@@ -351,6 +354,7 @@ class Database:
                     id INTEGER PRIMARY KEY DEFAULT 1,
                     admin_username TEXT DEFAULT 'admin',
                     admin_password TEXT DEFAULT 'admin',
+                    api_key TEXT DEFAULT 'han1234',
                     error_ban_threshold INTEGER DEFAULT 3,
                     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
@@ -451,14 +455,15 @@ class Database:
             global_config = config_dict.get("global", {})
             admin_username = global_config.get("admin_username", "admin")
             admin_password = global_config.get("admin_password", "admin")
+            api_key = global_config.get("api_key", "han1234")
 
             if not is_first_startup:
                 # On upgrade, update the configuration
                 await db.execute("""
                     UPDATE admin_config
-                    SET admin_username = ?, admin_password = ?, error_ban_threshold = ?, updated_at = CURRENT_TIMESTAMP
+                    SET admin_username = ?, admin_password = ?, api_key = ?, error_ban_threshold = ?, updated_at = CURRENT_TIMESTAMP
                     WHERE id = 1
-                """, (admin_username, admin_password, error_ban_threshold))
+                """, (admin_username, admin_password, api_key, error_ban_threshold))
 
             # Initialize proxy config
             proxy_config = config_dict.get("proxy", {})
@@ -965,16 +970,16 @@ class Database:
                 return AdminConfig(**dict(row))
             # If no row exists, return a default config with placeholder values
             # This should not happen in normal operation as _ensure_config_rows should create it
-            return AdminConfig(admin_username="admin", admin_password="admin")
+            return AdminConfig(admin_username="admin", admin_password="admin", api_key="han1234")
     
     async def update_admin_config(self, config: AdminConfig):
         """Update admin configuration"""
         async with aiosqlite.connect(self.db_path) as db:
             await db.execute("""
                 UPDATE admin_config
-                SET admin_username = ?, admin_password = ?, error_ban_threshold = ?, updated_at = CURRENT_TIMESTAMP
+                SET admin_username = ?, admin_password = ?, api_key = ?, error_ban_threshold = ?, updated_at = CURRENT_TIMESTAMP
                 WHERE id = 1
-            """, (config.admin_username, config.admin_password, config.error_ban_threshold))
+            """, (config.admin_username, config.admin_password, config.api_key, config.error_ban_threshold))
             await db.commit()
     
     # Proxy config operations

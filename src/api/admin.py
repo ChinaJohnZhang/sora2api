@@ -509,6 +509,13 @@ async def update_api_key(
 ):
     """Update API key"""
     try:
+        # Get current admin config from database
+        admin_config = await db.get_admin_config()
+
+        # Update api_key in database
+        admin_config.api_key = request.new_api_key
+        await db.update_admin_config(admin_config)
+
         # Update in-memory config
         config.api_key = request.new_api_key
 
