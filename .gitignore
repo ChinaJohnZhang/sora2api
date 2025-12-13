@@ -38,6 +38,7 @@ data/*.sqlite
 *.swp
 *.swo
 *~
+.history/
 
 # OS
 .DS_Store
@@ -45,7 +46,12 @@ Thumbs.db
 
 # Logs
 *.log
+logs.txt
 
 # Environment
 .env
 .env.local
+
+# Temporary
+tmp/
+debug_openai_flow.py

@@ -1,4 +1,5 @@
 """Token management module"""
+import json
 import jwt
 import asyncio
 import random
@@ -502,9 +503,8 @@ class TokenManager:
                     debug_logger.log_info(f"[ST_TO_AT] 响应内容: {response.text[:500]}")
                     raise ValueError(error_msg)
 
-                # 获取响应文本用于调试
+                # 获取响应文本（用于判空/解析），注意：不要把包含 accessToken 的原始响应写入日志
                 response_text = response.text
-                debug_logger.log_info(f"[ST_TO_AT] 📄 响应内容: {response_text[:500]}")
 
                 # 检查响应是否为空
                 if not response_text or response_text.strip() == "":
@@ -522,6 +522,17 @@ class TokenManager:
                 if data is None:
                     debug_logger.log_info(f"[ST_TO_AT] ❌ 响应JSON为空")
                     raise ValueError("Response JSON is empty")
+
+                # 记录脱敏后的响应内容（避免 logs.txt 里出现完整 accessToken）
+                try:
+                    safe_data = dict(data) if isinstance(data, dict) else data
+                    if isinstance(safe_data, dict) and safe_data.get("accessToken"):
+                        at = str(safe_data.get("accessToken"))
+                        safe_data["accessToken"] = f"{at[:6]}...{at[-6:]}" if len(at) > 12 else "***"
+                    debug_logger.log_info(f"[ST_TO_AT] 📄 响应内容(脱敏): {json.dumps(safe_data, ensure_ascii=False)[:500]}")
+                except Exception:
+                    # 脱敏日志失败不应影响主流程
+                    pass
 
                 access_token = data.get("accessToken")
                 email = data.get("user", {}).get("email") if data.get("user") else None
@@ -595,9 +606,8 @@ class TokenManager:
                     debug_logger.log_info(f"[RT_TO_AT] 响应内容: {response.text[:500]}")
                     raise ValueError(f"{error_msg} - {response.text}")
 
-                # 获取响应文本用于调试
+                # 获取响应文本（用于判空/解析），注意：不要把包含 token 的原始响应写入日志
                 response_text = response.text
-                debug_logger.log_info(f"[RT_TO_AT] 📄 响应内容: {response_text[:500]}")
 
                 # 检查响应是否为空
                 if not response_text or response_text.strip() == "":
@@ -615,6 +625,18 @@ class TokenManager:
                 if data is None:
                     debug_logger.log_info(f"[RT_TO_AT] ❌ 响应JSON为空")
                     raise ValueError("Response JSON is empty")
+
+                # 记录脱敏后的响应内容（避免 logs.txt 里出现完整 access_token/refresh_token）
+                try:
+                    safe_data = dict(data) if isinstance(data, dict) else data
+                    if isinstance(safe_data, dict):
+                        for k in ("access_token", "refresh_token"):
+                            if safe_data.get(k):
+                                v = str(safe_data.get(k))
+                                safe_data[k] = f"{v[:6]}...{v[-6:]}" if len(v) > 12 else "***"
+                    debug_logger.log_info(f"[RT_TO_AT] 📄 响应内容(脱敏): {json.dumps(safe_data, ensure_ascii=False)[:500]}")
+                except Exception:
+                    pass
 
                 access_token = data.get("access_token")
                 new_refresh_token = data.get("refresh_token")

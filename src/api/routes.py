@@ -97,6 +97,8 @@ async def create_chat_completion(
         image_data = request.image  # Default to request.image if provided
         video_data = request.video  # Video parameter
         remix_target_id = request.remix_target_id  # Remix target ID
+        character_description = request.character_description
+        character_safety = request.character_safety
 
         if isinstance(content, str):
             # Simple string format
@@ -158,6 +160,8 @@ async def create_chat_completion(
                     image=image_data,
                     video=video_data,
                     remix_target_id=remix_target_id,
+                    character_description=character_description,
+                    character_safety=character_safety,
                     stream=False
                 ):
                     result = chunk
@@ -189,6 +193,8 @@ async def create_chat_completion(
                         image=image_data,
                         video=video_data,
                         remix_target_id=remix_target_id,
+                        character_description=character_description,
+                        character_safety=character_safety,
                         stream=True
                     ):
                         yield chunk

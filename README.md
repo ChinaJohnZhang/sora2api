@@ -125,9 +125,9 @@ python main.py
 | 图生图 | `sora-image*` | 使用 `content` 数组 + `image_url` |
 | 文生视频 | `sora-video*` | 使用 `content` 为字符串 |
 | 图生视频 | `sora-video*` | 使用 `content` 数组 + `image_url` |
-| 创建角色 | `sora-video*` | 使用 `content` 数组 + `video_url` |
+| 创建角色 | `sora-video*` | 使用 `content` 数组 + `video_url`（可选 `character_description`, `character_safety`） |
 | 角色生成视频 | `sora-video*` | 使用 `content` 数组 + `video_url` + 文本 |
-| Remix | `sora-video*` | 在 `content` 中包含 Remix ID |
+| Remix | `sora-video*` | 在 `content` 中包含 Remix ID 或使用 `remix_target_id` 参数 |
 | 视频分镜 | `sora-video*` | 在 `content` 中使用```[时长s]提示词```格式触发 |
 
 ---
@@ -139,6 +139,10 @@ python main.py
 - **端点**: `http://localhost:8000/v1/chat/completions`
 - **认证**: 在请求头中添加 `Authorization: Bearer YOUR_API_KEY`
 - **默认 API Key**: `han1234`（建议修改）
+
+#### 其他端点
+
+- **获取模型列表**: `GET /v1/models`
 
 #### 支持的模型
 
@@ -259,6 +263,7 @@ curl -X POST "http://localhost:8000/v1/chat/completions" \
 **视频Remix（基于已有视频继续创作）**
 
 * 提示词内包含remix分享链接或id即可
+* 或者使用 `remix_target_id` 参数指定
 
 ```bash
 curl -X POST "http://localhost:8000/v1/chat/completions" \
@@ -270,6 +275,24 @@ curl -X POST "http://localhost:8000/v1/chat/completions" \
       {
         "role": "user",
         "content": "https://sora.chatgpt.com/p/s_68e3a06dcd888191b150971da152c1f5改成水墨画风格"
+      }
+    ]
+  }'
+```
+
+或者使用 `remix_target_id` 参数：
+
+```bash
+curl -X POST "http://localhost:8000/v1/chat/completions" \
+  -H "Authorization: Bearer han1234" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "sora-video-landscape-10s",
+    "remix_target_id": "s_68e3a06dcd888191b150971da152c1f5",
+    "messages": [
+      {
+        "role": "user",
+        "content": "改成水墨画风格"
       }
     ]
   }'
@@ -312,9 +335,16 @@ Sora2API 支持**视频角色生成**功能。
 
 #### API调用（OpenAI标准格式，需要使用流式）
 
+**获取用户档案 (测试连通性)**
+
+* 端点: `GET /v1/profile`
+* 说明: 测试与 Sora 服务的连通性，获取当前用户信息（可用于验证账号是否支持角色功能）
+* 认证: 需要 API Key
+
 **场景 1: 仅创建角色（不生成视频）**
 
 上传视频提取角色信息，获取角色名称和头像。
+可选参数：`character_description` (角色描述), `character_safety` (安全注意事项)。
 
 ```bash
 curl -X POST "http://localhost:8000/v1/chat/completions" \
@@ -322,6 +352,8 @@ curl -X POST "http://localhost:8000/v1/chat/completions" \
   -H "Content-Type: application/json" \
   -d '{
     "model": "sora-video-landscape-10s",
+    "character_description": "A brave young hero",
+    "character_safety": "No violence",
     "messages": [
       {
         "role": "user",

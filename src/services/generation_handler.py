@@ -224,6 +224,8 @@ class GenerationHandler:
                                image: Optional[str] = None,
                                video: Optional[str] = None,
                                remix_target_id: Optional[str] = None,
+                               character_description: Optional[str] = None,
+                               character_safety: Optional[str] = None,
                                stream: bool = True) -> AsyncGenerator[str, None]:
         """Handle generation request
 
@@ -233,6 +235,8 @@ class GenerationHandler:
             image: Base64 encoded image
             video: Base64 encoded video or video URL
             remix_target_id: Sora share link video ID for remix
+            character_description: Character description
+            character_safety: Character forbidden actions
             stream: Whether to stream response
         """
         start_time = time.time()
@@ -277,7 +281,12 @@ class GenerationHandler:
 
                 # If no prompt, just create character and return
                 if not prompt:
-                    async for chunk in self._handle_character_creation_only(video_data, model_config):
+                    async for chunk in self._handle_character_creation_only(
+                        video_data, 
+                        model_config,
+                        character_description=character_description,
+                        character_safety=character_safety
+                    ):
                         yield chunk
                     return
                 else:
@@ -1015,18 +1024,16 @@ class GenerationHandler:
 
     # ==================== Character Creation and Remix Handlers ====================
 
-    async def _handle_character_creation_only(self, video_data, model_config: Dict) -> AsyncGenerator[str, None]:
+    async def _handle_character_creation_only(self, video_data, model_config: Dict,
+                                            character_description: Optional[str] = None,
+                                            character_safety: Optional[str] = None) -> AsyncGenerator[str, None]:
         """Handle character creation only (no video generation)
-
-        Flow:
-        1. Download video if URL, or use bytes directly
-        2. Upload video to create character
-        3. Poll for character processing
-        4. Download and cache avatar
-        5. Upload avatar
-        6. Finalize character
-        7. Set character as public
-        8. Return success message
+        
+        Args:
+            video_data: Video bytes or URL
+            model_config: Model configuration
+            character_description: Character description
+            character_safety: Character forbidden actions
         """
         token_obj = await self.load_balancer.select_token(for_video_generation=True)
         if not token_obj:
@@ -1113,7 +1120,12 @@ class GenerationHandler:
             yield self._format_stream_chunk(
                 reasoning_content="Setting character as public...\n"
             )
-            await self.sora_client.set_character_public(cameo_id, token_obj.token)
+            await self.sora_client.set_character_public(
+                cameo_id, 
+                token_obj.token,
+                description=character_description,
+                safety_notes=character_safety
+            )
             debug_logger.log_info(f"Character set as public")
 
             # Step 7: Return success message

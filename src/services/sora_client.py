@@ -267,7 +267,7 @@ class SoraClient:
         proxy_url = await self.proxy_manager.get_proxy_url()
         
         if username:
-            profile_url = f"https://sora.chatgpt.com/backend/project_y/profile/username/{username}"
+            profile_url = f"https://sora.chatgpt.com/profile/{username}"
         else:
             profile_url = "https://sora.chatgpt.com/profile/dohdrbble.codekidori"
         
@@ -621,17 +621,42 @@ class SoraClient:
         result = await self._make_request("POST", "/characters/finalize", token, json_data=json_data)
         return result.get("character", {}).get("character_id")
 
-    async def set_character_public(self, cameo_id: str, token: str) -> bool:
-        """Set character as public
+    async def set_character_public(self, cameo_id: str, token: str,
+                                 description: Optional[str] = None,
+                                 safety_notes: Optional[str] = None) -> bool:
+        """Set character as public and optionally update description/safety notes
 
         Args:
             cameo_id: The cameo ID
             token: Access token
+            description: Character description (optional)
+            safety_notes: Forbidden actions (optional)
 
         Returns:
             True if successful
         """
         json_data = {"visibility": "public"}
+        
+        if description:
+            json_data["instruction_set"] = {
+                "value": [
+                    {
+                        "type": "text",
+                        "value": description
+                    }
+                ]
+            }
+            
+        if safety_notes:
+            json_data["safety_instruction_set"] = {
+                "value": [
+                    {
+                        "type": "text",
+                        "value": safety_notes
+                    }
+                ]
+            }
+
         await self._make_request("POST", f"/project_y/cameos/by_id/{cameo_id}/update_v2", token, json_data=json_data)
         return True
 

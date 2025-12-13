@@ -138,6 +138,8 @@ class ChatCompletionRequest(BaseModel):
     image: Optional[str] = None
     video: Optional[str] = None  # Base64 encoded video file
     remix_target_id: Optional[str] = None  # Sora share link video ID for remix
+    character_description: Optional[str] = None  # Character description for separate character creation
+    character_safety: Optional[str] = None  # Character forbidden actions for separate character creation
     stream: bool = False
     max_tokens: Optional[int] = None
 
