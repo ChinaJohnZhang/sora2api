@@ -142,7 +142,6 @@ class ChatCompletionRequest(BaseModel):
     remix_target_id: Optional[str] = None  # Sora share link video ID for remix
     character_description: Optional[str] = None  # Character description for separate character creation
     character_safety: Optional[str] = None  # Character forbidden actions for separate character creation
-    is_character_account: bool = False  # Whether to use character account for generation
     stream: bool = False
     max_tokens: Optional[int] = None
 

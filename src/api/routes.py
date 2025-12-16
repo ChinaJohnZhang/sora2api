@@ -99,7 +99,6 @@ async def create_chat_completion(
         remix_target_id = request.remix_target_id  # Remix target ID
         character_description = request.character_description
         character_safety = request.character_safety
-        is_character_account = request.is_character_account
 
         if isinstance(content, str):
             # Simple string format
@@ -163,7 +162,6 @@ async def create_chat_completion(
                     remix_target_id=remix_target_id,
                     character_description=character_description,
                     character_safety=character_safety,
-                    is_character_account=is_character_account,
                     stream=False
                 ):
                     result = chunk
@@ -197,7 +195,6 @@ async def create_chat_completion(
                         remix_target_id=remix_target_id,
                         character_description=character_description,
                         character_safety=character_safety,
-                        is_character_account=is_character_account,
                         stream=True
                     ):
                         yield chunk
