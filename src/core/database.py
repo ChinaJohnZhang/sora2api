@@ -196,6 +196,7 @@ class Database:
                     ("video_enabled", "BOOLEAN DEFAULT 1"),
                     ("image_concurrency", "INTEGER DEFAULT -1"),
                     ("video_concurrency", "INTEGER DEFAULT -1"),
+                    ("is_character_account", "BOOLEAN DEFAULT 0"),
                     ("client_id", "TEXT"),
                 ]
 
@@ -293,7 +294,8 @@ class Database:
                     image_enabled BOOLEAN DEFAULT 1,
                     video_enabled BOOLEAN DEFAULT 1,
                     image_concurrency INTEGER DEFAULT -1,
-                    video_concurrency INTEGER DEFAULT -1
+                    video_concurrency INTEGER DEFAULT -1,
+                    is_character_account BOOLEAN DEFAULT 0
                 )
             """)
 
@@ -571,8 +573,8 @@ class Database:
                 INSERT INTO tokens (token, email, username, name, st, rt, client_id, remark, expiry_time, is_active,
                                    plan_type, plan_title, subscription_end, sora2_supported, sora2_invite_code,
                                    sora2_redeemed_count, sora2_total_count, sora2_remaining_count, sora2_cooldown_until,
-                                   image_enabled, video_enabled, image_concurrency, video_concurrency)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                   image_enabled, video_enabled, image_concurrency, video_concurrency, is_character_account)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (token.token, token.email, "", token.name, token.st, token.rt, token.client_id,
                   token.remark, token.expiry_time, token.is_active,
                   token.plan_type, token.plan_title, token.subscription_end,
@@ -580,7 +582,7 @@ class Database:
                   token.sora2_redeemed_count, token.sora2_total_count,
                   token.sora2_remaining_count, token.sora2_cooldown_until,
                   token.image_enabled, token.video_enabled,
-                  token.image_concurrency, token.video_concurrency))
+                  token.image_concurrency, token.video_concurrency, token.is_character_account))
             await db.commit()
             token_id = cursor.lastrowid
 
@@ -717,8 +719,9 @@ class Database:
                           image_enabled: Optional[bool] = None,
                           video_enabled: Optional[bool] = None,
                           image_concurrency: Optional[int] = None,
-                          video_concurrency: Optional[int] = None):
-        """Update token (AT, ST, RT, client_id, remark, expiry_time, subscription info, image_enabled, video_enabled)"""
+                          video_concurrency: Optional[int] = None,
+                          is_character_account: Optional[bool] = None):
+        """Update token (AT, ST, RT, client_id, remark, expiry_time, subscription info, image_enabled, video_enabled, is_character_account)"""
         async with aiosqlite.connect(self.db_path) as db:
             # Build dynamic update query
             updates = []
@@ -775,6 +778,10 @@ class Database:
             if video_concurrency is not None:
                 updates.append("video_concurrency = ?")
                 params.append(video_concurrency)
+
+            if is_character_account is not None:
+                updates.append("is_character_account = ?")
+                params.append(is_character_account)
 
             if updates:
                 params.append(token_id)

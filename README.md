@@ -115,6 +115,38 @@ python main.py
 
 ⚠️ **重要**: 首次登录后请立即修改密码！
 
+### Token 批量导入格式
+
+在管理后台导入 Token 时，支持 JSON 格式。新增字段 `is_character_account` 用于标记角色号。
+
+**字段说明：**
+- `email`: 邮箱（唯一标识）
+- `access_token`: Access Token
+- `session_token`: Session Token (可选)
+- `refresh_token`: Refresh Token (可选)
+- `is_active`: 是否激活 (默认 true)
+- `image_enabled`: 启用图片生成 (默认 true)
+- `video_enabled`: 启用视频生成 (默认 true)
+- `image_concurrency`: 图片并发限制 (默认 -1)
+- `video_concurrency`: 视频并发限制 (默认 -1)
+- `is_character_account`: **是否为角色号** (默认 false) - 角色号仅用于创建角色，不参与普通视频生成；普通账号仅用于视频生成，不参与角色创建。
+
+**示例 JSON:**
+```json
+[
+  {
+    "email": "character_account@example.com",
+    "access_token": "ey...",
+    "is_character_account": true
+  },
+  {
+    "email": "video_account@example.com",
+    "access_token": "ey...",
+    "is_character_account": false
+  }
+]
+```
+
 ---
 
 ### 快速参考

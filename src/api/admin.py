@@ -68,6 +68,7 @@ class AddTokenRequest(BaseModel):
     video_enabled: bool = True  # Enable video generation
     image_concurrency: int = -1  # Image concurrency limit (-1 for no limit)
     video_concurrency: int = -1  # Video concurrency limit (-1 for no limit)
+    is_character_account: bool = False  # Is character account
 
 class ST2ATRequest(BaseModel):
     st: str  # Session Token
@@ -88,6 +89,7 @@ class UpdateTokenRequest(BaseModel):
     video_enabled: Optional[bool] = None  # Enable video generation
     image_concurrency: Optional[int] = None  # Image concurrency limit
     video_concurrency: Optional[int] = None  # Video concurrency limit
+    is_character_account: Optional[bool] = None  # Is character account
 
 class ImportTokenItem(BaseModel):
     email: str  # Email (primary key)
@@ -99,6 +101,7 @@ class ImportTokenItem(BaseModel):
     video_enabled: bool = True  # Enable video generation
     image_concurrency: int = -1  # Image concurrency limit
     video_concurrency: int = -1  # Video concurrency limit
+    is_character_account: bool = False  # Is character account
 
 class ImportTokensRequest(BaseModel):
     tokens: List[ImportTokenItem]
@@ -200,7 +203,8 @@ async def get_tokens(token: str = Depends(verify_admin_token)) -> List[dict]:
             "video_enabled": token.video_enabled,
             # 并发限制
             "image_concurrency": token.image_concurrency,
-            "video_concurrency": token.video_concurrency
+            "video_concurrency": token.video_concurrency,
+            "is_character_account": token.is_character_account
         })
 
     return result
@@ -358,7 +362,8 @@ async def import_tokens(request: ImportTokensRequest, token: str = Depends(verif
                     image_enabled=import_item.image_enabled,
                     video_enabled=import_item.video_enabled,
                     image_concurrency=import_item.image_concurrency,
-                    video_concurrency=import_item.video_concurrency
+                    video_concurrency=import_item.video_concurrency,
+                    is_character_account=import_item.is_character_account
                 )
                 # Update active status
                 await token_manager.update_token_status(existing_token.id, import_item.is_active)
@@ -380,7 +385,8 @@ async def import_tokens(request: ImportTokensRequest, token: str = Depends(verif
                     image_enabled=import_item.image_enabled,
                     video_enabled=import_item.video_enabled,
                     image_concurrency=import_item.image_concurrency,
-                    video_concurrency=import_item.video_concurrency
+                    video_concurrency=import_item.video_concurrency,
+                    is_character_account=import_item.is_character_account
                 )
                 # Set active status
                 if not import_item.is_active:
@@ -421,7 +427,8 @@ async def update_token(
             image_enabled=request.image_enabled,
             video_enabled=request.video_enabled,
             image_concurrency=request.image_concurrency,
-            video_concurrency=request.video_concurrency
+            video_concurrency=request.video_concurrency,
+            is_character_account=request.is_character_account
         )
         # Reset concurrency counters if they were updated
         if concurrency_manager and (request.image_concurrency is not None or request.video_concurrency is not None):

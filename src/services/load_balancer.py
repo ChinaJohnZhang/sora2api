@@ -17,13 +17,14 @@ class LoadBalancer:
         # Use image timeout from config as lock timeout
         self.token_lock = TokenLock(lock_timeout=config.image_timeout)
 
-    async def select_token(self, for_image_generation: bool = False, for_video_generation: bool = False) -> Optional[Token]:
+    async def select_token(self, for_image_generation: bool = False, for_video_generation: bool = False, for_character_creation: bool = False) -> Optional[Token]:
         """
         Select a token using random load balancing
 
         Args:
             for_image_generation: If True, only select tokens that are not locked for image generation and have image_enabled=True
             for_video_generation: If True, filter out tokens with Sora2 quota exhausted (sora2_cooldown_until not expired), tokens that don't support Sora2, and tokens with video_enabled=False
+            for_character_creation: If True, select tokens marked as character accounts
 
         Returns:
             Selected token or None if no available tokens
@@ -53,6 +54,23 @@ class LoadBalancer:
 
         active_tokens = await self.token_manager.get_active_tokens()
 
+        if not active_tokens:
+            return None
+
+        # Filter by character account status
+        # If for character creation, ONLY use character accounts
+        # If not for character creation, DO NOT use character accounts (keep them isolated)
+        filtered_tokens = []
+        for token in active_tokens:
+            is_char = getattr(token, "is_character_account", False)
+            if for_character_creation:
+                if is_char:
+                    filtered_tokens.append(token)
+            else:
+                if not is_char:
+                    filtered_tokens.append(token)
+        
+        active_tokens = filtered_tokens
         if not active_tokens:
             return None
 

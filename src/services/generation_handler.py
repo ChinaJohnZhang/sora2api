@@ -1035,9 +1035,9 @@ class GenerationHandler:
             character_description: Character description
             character_safety: Character forbidden actions
         """
-        token_obj = await self.load_balancer.select_token(for_video_generation=True)
+        token_obj = await self.load_balancer.select_token(for_video_generation=True, for_character_creation=True)
         if not token_obj:
-            raise Exception("No available tokens for character creation")
+            raise Exception("No available character account tokens for character creation")
 
         try:
             yield self._format_stream_chunk(
@@ -1157,9 +1157,9 @@ class GenerationHandler:
         8. Delete character
         9. Return video result
         """
-        token_obj = await self.load_balancer.select_token(for_video_generation=True)
+        token_obj = await self.load_balancer.select_token(for_video_generation=True, for_character_creation=True)
         if not token_obj:
-            raise Exception("No available tokens for video generation")
+            raise Exception("No available character account tokens for video generation")
 
         character_id = None
         try:

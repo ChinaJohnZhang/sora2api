@@ -670,7 +670,8 @@ class TokenManager:
                        image_enabled: bool = True,
                        video_enabled: bool = True,
                        image_concurrency: int = -1,
-                       video_concurrency: int = -1) -> Token:
+                       video_concurrency: int = -1,
+                       is_character_account: bool = False) -> Token:
         """Add a new Access Token to database
 
         Args:
@@ -684,6 +685,7 @@ class TokenManager:
             video_enabled: Enable video generation (default: True)
             image_concurrency: Image concurrency limit (-1 for no limit)
             video_concurrency: Video concurrency limit (-1 for no limit)
+            is_character_account: Is character account (default: False)
 
         Returns:
             Token object
@@ -697,7 +699,10 @@ class TokenManager:
             if not update_if_exists:
                 raise ValueError(f"Token 已存在（邮箱: {existing_token.email}）。如需更新，请先删除旧 Token 或使用更新功能。")
             # Update existing token
-            return await self.update_existing_token(existing_token.id, token_value, st, rt, remark)
+            return await self.update_existing_token(
+                existing_token.id, token_value, st, rt, remark,
+                image_enabled, video_enabled, image_concurrency, video_concurrency, is_character_account
+            )
 
         # Decode JWT to get expiry time and email
         decoded = await self.decode_jwt(token_value)
@@ -828,7 +833,8 @@ class TokenManager:
             image_enabled=image_enabled,
             video_enabled=video_enabled,
             image_concurrency=image_concurrency,
-            video_concurrency=video_concurrency
+            video_concurrency=video_concurrency,
+            is_character_account=is_character_account
         )
 
         # Save to database
@@ -840,7 +846,12 @@ class TokenManager:
     async def update_existing_token(self, token_id: int, token_value: str,
                                     st: Optional[str] = None,
                                     rt: Optional[str] = None,
-                                    remark: Optional[str] = None) -> Token:
+                                    remark: Optional[str] = None,
+                                    image_enabled: Optional[bool] = None,
+                                    video_enabled: Optional[bool] = None,
+                                    image_concurrency: Optional[int] = None,
+                                    video_concurrency: Optional[int] = None,
+                                    is_character_account: Optional[bool] = None) -> Token:
         """Update an existing token with new information"""
         # Decode JWT to get expiry time
         decoded = await self.decode_jwt(token_value)
@@ -883,7 +894,12 @@ class TokenManager:
             expiry_time=expiry_time,
             plan_type=plan_type,
             plan_title=plan_title,
-            subscription_end=subscription_end
+            subscription_end=subscription_end,
+            image_enabled=image_enabled,
+            video_enabled=video_enabled,
+            image_concurrency=image_concurrency,
+            video_concurrency=video_concurrency,
+            is_character_account=is_character_account
         )
 
         # Get updated token
@@ -903,8 +919,9 @@ class TokenManager:
                           image_enabled: Optional[bool] = None,
                           video_enabled: Optional[bool] = None,
                           image_concurrency: Optional[int] = None,
-                          video_concurrency: Optional[int] = None):
-        """Update token (AT, ST, RT, client_id, remark, image_enabled, video_enabled, concurrency limits)"""
+                          video_concurrency: Optional[int] = None,
+                          is_character_account: Optional[bool] = None):
+        """Update token (AT, ST, RT, client_id, remark, image_enabled, video_enabled, concurrency limits, is_character_account)"""
         # If token (AT) is updated, decode JWT to get new expiry time
         expiry_time = None
         if token:
@@ -916,7 +933,8 @@ class TokenManager:
 
         await self.db.update_token(token_id, token=token, st=st, rt=rt, client_id=client_id, remark=remark, expiry_time=expiry_time,
                                    image_enabled=image_enabled, video_enabled=video_enabled,
-                                   image_concurrency=image_concurrency, video_concurrency=video_concurrency)
+                                   image_concurrency=image_concurrency, video_concurrency=video_concurrency,
+                                   is_character_account=is_character_account)
 
     async def get_active_tokens(self) -> List[Token]:
         """Get all active tokens (not cooled down)"""
