@@ -193,17 +193,22 @@ class GenerationHandler:
                 raise Exception(f"Failed to download file: {response.status_code}")
             return response.content
     
-    async def check_token_availability(self, is_image: bool, is_video: bool) -> bool:
+    async def check_token_availability(self, is_image: bool, is_video: bool, is_character_account: bool = False) -> bool:
         """Check if tokens are available for the given model type
 
         Args:
             is_image: Whether checking for image generation
             is_video: Whether checking for video generation
+            is_character_account: Whether to check for character account tokens
 
         Returns:
             True if available tokens exist, False otherwise
         """
-        token_obj = await self.load_balancer.select_token(for_image_generation=is_image, for_video_generation=is_video)
+        token_obj = await self.load_balancer.select_token(
+            for_image_generation=is_image, 
+            for_video_generation=is_video,
+            for_character_creation=is_character_account
+        )
         return token_obj is not None
 
     async def fetch_profile(self, username: Optional[str] = None) -> Dict[str, Any]:
@@ -226,6 +231,7 @@ class GenerationHandler:
                                remix_target_id: Optional[str] = None,
                                character_description: Optional[str] = None,
                                character_safety: Optional[str] = None,
+                               is_character_account: bool = False,
                                stream: bool = True) -> AsyncGenerator[str, None]:
         """Handle generation request
 
@@ -237,6 +243,7 @@ class GenerationHandler:
             remix_target_id: Sora share link video ID for remix
             character_description: Character description
             character_safety: Character forbidden actions
+            is_character_account: Whether to use character account for generation
             stream: Whether to stream response
         """
         start_time = time.time()
@@ -251,7 +258,7 @@ class GenerationHandler:
 
         # Non-streaming mode: only check availability
         if not stream:
-            available = await self.check_token_availability(is_image, is_video)
+            available = await self.check_token_availability(is_image, is_video, is_character_account)
             if available:
                 if is_image:
                     message = "All tokens available for image generation. Please enable streaming to use the generation feature."
@@ -297,7 +304,11 @@ class GenerationHandler:
 
         # Streaming mode: proceed with actual generation
         # Select token (with lock for image generation, Sora2 quota check for video generation)
-        token_obj = await self.load_balancer.select_token(for_image_generation=is_image, for_video_generation=is_video)
+        token_obj = await self.load_balancer.select_token(
+            for_image_generation=is_image, 
+            for_video_generation=is_video,
+            for_character_creation=is_character_account
+        )
         if not token_obj:
             if is_image:
                 raise Exception("No available tokens for image generation. All tokens are either disabled, cooling down, locked, or expired.")
