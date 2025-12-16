@@ -442,126 +442,16 @@ class Database:
 
         Args:
             config_dict: Configuration dictionary from setting.toml
-            is_first_startup: If True, only update if row doesn't exist. If False, always update.
+            is_first_startup: If True, initialize all config rows from setting.toml.
+                            If False (upgrade mode), only ensure missing config rows exist with default values.
         """
         async with aiosqlite.connect(self.db_path) as db:
-            # On first startup, ensure all config rows exist with values from setting.toml
             if is_first_startup:
+                # First startup: Initialize all config tables with values from setting.toml
                 await self._ensure_config_rows(db, config_dict)
-
-            # Initialize admin config
-            admin_config = config_dict.get("admin", {})
-            error_ban_threshold = admin_config.get("error_ban_threshold", 3)
-
-            # Get admin credentials from global config
-            global_config = config_dict.get("global", {})
-            admin_username = global_config.get("admin_username", "admin")
-            admin_password = global_config.get("admin_password", "admin")
-            api_key = global_config.get("api_key", "han1234")
-
-            if not is_first_startup:
-                # On upgrade, update the configuration
-                await db.execute("""
-                    UPDATE admin_config
-                    SET admin_username = ?, admin_password = ?, api_key = ?, error_ban_threshold = ?, updated_at = CURRENT_TIMESTAMP
-                    WHERE id = 1
-                """, (admin_username, admin_password, api_key, error_ban_threshold))
-
-            # Initialize proxy config
-            proxy_config = config_dict.get("proxy", {})
-            proxy_enabled = proxy_config.get("proxy_enabled", False)
-            proxy_url = proxy_config.get("proxy_url", "")
-            # Convert empty string to None
-            proxy_url = proxy_url if proxy_url else None
-
-            if is_first_startup:
-                await db.execute("""
-                    INSERT OR IGNORE INTO proxy_config (id, proxy_enabled, proxy_url)
-                    VALUES (1, ?, ?)
-                """, (proxy_enabled, proxy_url))
             else:
-                await db.execute("""
-                    UPDATE proxy_config
-                    SET proxy_enabled = ?, proxy_url = ?, updated_at = CURRENT_TIMESTAMP
-                    WHERE id = 1
-                """, (proxy_enabled, proxy_url))
-
-            # Initialize watermark-free config
-            watermark_config = config_dict.get("watermark_free", {})
-            watermark_free_enabled = watermark_config.get("watermark_free_enabled", False)
-            parse_method = watermark_config.get("parse_method", "third_party")
-            custom_parse_url = watermark_config.get("custom_parse_url", "")
-            custom_parse_token = watermark_config.get("custom_parse_token", "")
-
-            # Convert empty strings to None
-            custom_parse_url = custom_parse_url if custom_parse_url else None
-            custom_parse_token = custom_parse_token if custom_parse_token else None
-
-            if is_first_startup:
-                await db.execute("""
-                    INSERT OR IGNORE INTO watermark_free_config (id, watermark_free_enabled, parse_method, custom_parse_url, custom_parse_token)
-                    VALUES (1, ?, ?, ?, ?)
-                """, (watermark_free_enabled, parse_method, custom_parse_url, custom_parse_token))
-            else:
-                await db.execute("""
-                    UPDATE watermark_free_config
-                    SET watermark_free_enabled = ?, parse_method = ?, custom_parse_url = ?,
-                        custom_parse_token = ?, updated_at = CURRENT_TIMESTAMP
-                    WHERE id = 1
-                """, (watermark_free_enabled, parse_method, custom_parse_url, custom_parse_token))
-
-            # Initialize cache config
-            cache_config = config_dict.get("cache", {})
-            cache_enabled = cache_config.get("enabled", False)
-            cache_timeout = cache_config.get("timeout", 600)
-            cache_base_url = cache_config.get("base_url", "")
-            # Convert empty string to None
-            cache_base_url = cache_base_url if cache_base_url else None
-
-            if is_first_startup:
-                await db.execute("""
-                    INSERT OR IGNORE INTO cache_config (id, cache_enabled, cache_timeout, cache_base_url)
-                    VALUES (1, ?, ?, ?)
-                """, (cache_enabled, cache_timeout, cache_base_url))
-            else:
-                await db.execute("""
-                    UPDATE cache_config
-                    SET cache_enabled = ?, cache_timeout = ?, cache_base_url = ?, updated_at = CURRENT_TIMESTAMP
-                    WHERE id = 1
-                """, (cache_enabled, cache_timeout, cache_base_url))
-
-            # Initialize generation config
-            generation_config = config_dict.get("generation", {})
-            image_timeout = generation_config.get("image_timeout", 300)
-            video_timeout = generation_config.get("video_timeout", 1500)
-
-            if is_first_startup:
-                await db.execute("""
-                    INSERT OR IGNORE INTO generation_config (id, image_timeout, video_timeout)
-                    VALUES (1, ?, ?)
-                """, (image_timeout, video_timeout))
-            else:
-                await db.execute("""
-                    UPDATE generation_config
-                    SET image_timeout = ?, video_timeout = ?, updated_at = CURRENT_TIMESTAMP
-                    WHERE id = 1
-                """, (image_timeout, video_timeout))
-
-            # Initialize token refresh config
-            token_refresh_config = config_dict.get("token_refresh", {})
-            at_auto_refresh_enabled = token_refresh_config.get("at_auto_refresh_enabled", False)
-
-            if is_first_startup:
-                await db.execute("""
-                    INSERT OR IGNORE INTO token_refresh_config (id, at_auto_refresh_enabled)
-                    VALUES (1, ?)
-                """, (at_auto_refresh_enabled,))
-            else:
-                await db.execute("""
-                    UPDATE token_refresh_config
-                    SET at_auto_refresh_enabled = ?, updated_at = CURRENT_TIMESTAMP
-                    WHERE id = 1
-                """, (at_auto_refresh_enabled,))
+                # Upgrade mode: Only ensure missing config rows exist (with default values, not from TOML)
+                await self._ensure_config_rows(db, config_dict=None)
 
             await db.commit()
 

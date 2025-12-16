@@ -13,18 +13,6 @@
 
 ---
 
-## 📋 目录
-
-- [功能特性](#功能特性)
-- [快速开始](#快速开始)
-- [使用指南](#使用指南)
-  - [快速参考](#快速参考)
-  - [管理后台](#管理后台)
-  - [API 调用](#api-调用)
-  - [视频角色功能](#视频角色功能)
-- [许可证](#许可证)
-
----
 
 ## ✨ 功能特性
 
@@ -36,6 +24,7 @@
 - 📊 **多尺寸支持** - 横屏、竖屏等多种规格
 - 🎭 **视频角色功能** - 创建角色，生成角色视频
 - 🎬 **Remix 功能** - 基于已有视频继续创作
+- 🎥 **分镜功能** - 支持生成分镜视频
 
 ### 高级特性
 - 🔐 **Token 管理** - 支持多 Token 管理和轮询负载均衡
@@ -499,3 +488,7 @@ for line in response.iter_lines():
 ---
 
 **⭐ 如果这个项目对你有帮助，请给个 Star！**
+
+## Star History
+
+[![Star History Chart](https://api.star-history.com/svg?repos=TheSmallHanCat/sora2api&type=date&legend=top-left)](https://www.star-history.com/#TheSmallHanCat/sora2api&type=date&legend=top-left)
