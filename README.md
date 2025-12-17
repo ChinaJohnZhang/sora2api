@@ -440,6 +440,34 @@ curl -X POST "http://localhost:8000/v1/chat/completions" \
   }'
 ```
 
+#### 方式二：直连 API (非 Chat 格式)
+
+直接通过视频 URL 创建角色，返回 JSON 结果（非流式）。
+
+- **端点**: `POST /v1/character/create`
+- **认证**: `Authorization: Bearer YOUR_API_KEY`
+- **请求体**:
+
+```json
+{
+  "video_url": "https://example.com/video.mp4",
+  "description": "可选角色描述",
+  "safety_notes": "可选安全注意事项"
+}
+```
+
+- **响应示例**:
+
+```json
+{
+  "character_id": "c_...",
+  "username": "character123",
+  "display_name": "Character",
+  "cameo_id": "cameo_...",
+  "profile_asset_url": "https://..."
+}
+```
+
 #### Python 代码示例
 
 ```python

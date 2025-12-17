@@ -6,7 +6,7 @@ from typing import List
 import json
 import re
 from ..core.auth import verify_api_key_header
-from ..core.models import ChatCompletionRequest
+from ..core.models import ChatCompletionRequest, CharacterCreationRequest
 from ..services.generation_handler import GenerationHandler, MODEL_CONFIG
 
 router = APIRouter()
@@ -78,6 +78,25 @@ async def list_models(api_key: str = Depends(verify_api_key_header)):
         "data": models
     }
 
+@router.post("/v1/character/create")
+async def create_character(
+    request: CharacterCreationRequest,
+    api_key: str = Depends(verify_api_key_header)
+):
+    """Create character from video (direct endpoint)"""
+    try:
+        if not generation_handler:
+            raise HTTPException(status_code=503, detail="Service not initialized")
+            
+        result = await generation_handler.create_character(
+            video_url=request.video_url,
+            description=request.description,
+            safety_notes=request.safety_notes
+        )
+        return JSONResponse(content=result)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 @router.post("/v1/chat/completions")
 async def create_chat_completion(
     request: ChatCompletionRequest,
@@ -95,7 +114,7 @@ async def create_chat_completion(
         # Handle both string and array format (OpenAI multimodal)
         prompt = ""
         image_data = request.image  # Default to request.image if provided
-        video_data = request.video  # Video parameter
+        video_data = request.video_url or request.video  # Video parameter (support video_url or video)
         remix_target_id = request.remix_target_id  # Remix target ID
         character_description = request.character_description
         character_safety = request.character_safety

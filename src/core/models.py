@@ -138,7 +138,8 @@ class ChatCompletionRequest(BaseModel):
     model: str
     messages: List[ChatMessage]
     image: Optional[str] = None
-    video: Optional[str] = None  # Base64 encoded video file
+    video: Optional[str] = None  # Base64 encoded video file or video URL
+    video_url: Optional[str] = None  # Direct video URL (alias for video, prioritized if both provided)
     remix_target_id: Optional[str] = None  # Sora share link video ID for remix
     character_description: Optional[str] = None  # Character description for separate character creation
     character_safety: Optional[str] = None  # Character forbidden actions for separate character creation
@@ -158,3 +159,10 @@ class ChatCompletionResponse(BaseModel):
     created: int
     model: str
     choices: List[ChatCompletionChoice]
+
+class CharacterCreationRequest(BaseModel):
+    """Request model for direct character creation"""
+    video_url: str
+    name: Optional[str] = None  # Overrides the auto-generated name if provided (Note: API usually auto-generates)
+    description: Optional[str] = None
+    safety_notes: Optional[str] = None

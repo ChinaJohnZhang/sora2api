@@ -78,6 +78,7 @@ class GenerationHandler:
         self.token_manager = token_manager
         self.load_balancer = load_balancer
         self.db = db
+        self.proxy_manager = proxy_manager
         self.concurrency_manager = concurrency_manager
         self.file_cache = FileCache(
             cache_dir="tmp",
@@ -177,7 +178,9 @@ class GenerationHandler:
         """
         from curl_cffi.requests import AsyncSession
 
-        proxy_url = await self.load_balancer.proxy_manager.get_proxy_url()
+        proxy_url = None
+        if self.proxy_manager:
+            proxy_url = await self.proxy_manager.get_proxy_url()
 
         kwargs = {
             "timeout": 30,
@@ -1042,6 +1045,93 @@ class GenerationHandler:
             print(f"Failed to log request: {e}")
 
     # ==================== Character Creation and Remix Handlers ====================
+
+    async def create_character(self, video_url: str, description: Optional[str] = None, safety_notes: Optional[str] = None) -> Dict[str, Any]:
+        """Create character from video URL (direct API)
+        
+        Args:
+            video_url: URL of the video to create character from
+            description: Character description
+            safety_notes: Character forbidden actions
+            
+        Returns:
+            Dictionary containing character details (id, username, display_name, avatar_url)
+        """
+        token_obj = await self.load_balancer.select_token(for_video_generation=True, for_character_creation=True)
+        if not token_obj:
+            raise Exception("No available character account tokens for character creation")
+
+        try:
+            debug_logger.log_info(f"Starting direct character creation for video: {video_url}")
+
+            # Download video
+            video_bytes = await self._download_file(video_url)
+            debug_logger.log_info(f"Video downloaded, size: {len(video_bytes)} bytes")
+
+            # Step 1: Upload video
+            cameo_id = await self.sora_client.upload_character_video(video_bytes, token_obj.token)
+            debug_logger.log_info(f"Video uploaded, cameo_id: {cameo_id}")
+
+            # Step 2: Poll for character processing
+            cameo_status = await self._poll_cameo_status(cameo_id, token_obj.token)
+            debug_logger.log_info(f"Cameo status: {cameo_status}")
+
+            # Extract character info
+            username_hint = cameo_status.get("username_hint", "character")
+            display_name = cameo_status.get("display_name_hint", "Character")
+
+            # Process username: remove prefix and add 3 random digits
+            username = self._process_character_username(username_hint)
+
+            # Step 3: Download and cache avatar
+            profile_asset_url = cameo_status.get("profile_asset_url")
+            if not profile_asset_url:
+                raise Exception("Profile asset URL not found in cameo status")
+
+            avatar_data = await self.sora_client.download_character_image(profile_asset_url)
+            debug_logger.log_info(f"Avatar downloaded, size: {len(avatar_data)} bytes")
+
+            # Step 4: Upload avatar
+            asset_pointer = await self.sora_client.upload_character_image(avatar_data, token_obj.token)
+            debug_logger.log_info(f"Avatar uploaded, asset_pointer: {asset_pointer}")
+
+            # Step 5: Finalize character
+            instruction_set = cameo_status.get("instruction_set_hint") or cameo_status.get("instruction_set")
+
+            character_id = await self.sora_client.finalize_character(
+                cameo_id=cameo_id,
+                username=username,
+                display_name=display_name,
+                profile_asset_pointer=asset_pointer,
+                instruction_set=instruction_set,
+                token=token_obj.token
+            )
+            debug_logger.log_info(f"Character finalized, character_id: {character_id}")
+
+            # Step 6: Set character as public
+            await self.sora_client.set_character_public(
+                cameo_id, 
+                token_obj.token,
+                description=description,
+                safety_notes=safety_notes
+            )
+            debug_logger.log_info(f"Character set as public")
+
+            return {
+                "character_id": character_id,
+                "username": username,
+                "display_name": display_name,
+                "cameo_id": cameo_id,
+                "profile_asset_url": profile_asset_url
+            }
+
+        except Exception as e:
+            debug_logger.log_error(
+                error_message=f"Direct character creation failed: {str(e)}",
+                status_code=500,
+                response_text=str(e)
+            )
+            raise
 
     async def _handle_character_creation_only(self, video_data, model_config: Dict,
                                             character_description: Optional[str] = None,
