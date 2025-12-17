@@ -211,14 +211,22 @@ class GenerationHandler:
         )
         return token_obj is not None
 
-    async def fetch_profile(self, username: Optional[str] = None) -> Dict[str, Any]:
+    async def fetch_profile(self, username: str) -> Dict[str, Any]:
         """Fetch public profile using an available token"""
-        # Try to get any available token
+        # Try to get any available token (normal account)
         token_obj = await self.load_balancer.select_token(for_image_generation=True, for_video_generation=False)
+        
+        if not token_obj:
+            # Try character account if normal account not available
+            token_obj = await self.load_balancer.select_token(for_image_generation=True, for_video_generation=False, for_character_creation=True)
         
         if not token_obj:
             # Try video token if image generation token not available
             token_obj = await self.load_balancer.select_token(for_image_generation=False, for_video_generation=True)
+
+        if not token_obj:
+            # Try video token from character account
+            token_obj = await self.load_balancer.select_token(for_image_generation=False, for_video_generation=True, for_character_creation=True)
             
         if not token_obj:
             raise Exception("No available tokens found to fetch profile")

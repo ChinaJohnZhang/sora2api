@@ -356,11 +356,28 @@ Sora2API 支持**视频角色生成**功能。
 
 #### API调用（OpenAI标准格式，需要使用流式）
 
-**获取用户档案 (测试连通性)**
+**获取角色信息 (测试连通性)**
 
 * 端点: `GET /v1/profile`
-* 说明: 测试与 Sora 服务的连通性，获取当前用户信息（可用于验证账号是否支持角色功能）
+* 说明: 测试与 Sora 服务的连通性，获取指定角色页面信息（用于验证角色是否可用）
 * 认证: 需要 API Key
+* 请求参数:
+  * `username` (必填): 指定要获取信息的角色标识。
+* 响应示例:
+  ```json
+  {
+    "username": "efxaltiib.foxmaskmys",
+    "can_cameo": true,
+    "success": true
+  }
+  ```
+  或者失败时：
+  ```json
+  {
+    "success": false,
+    "status_code": 404
+  }
+  ```
 
 **场景 1: 仅创建角色（不生成视频）**
 

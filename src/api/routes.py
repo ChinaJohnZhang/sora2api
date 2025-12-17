@@ -43,7 +43,7 @@ def _extract_remix_id(text: str) -> str:
     return ""
 
 @router.get("/v1/profile")
-async def fetch_profile(username: str = None, api_key: str = Depends(verify_api_key_header)):
+async def fetch_profile(username: str, api_key: str = Depends(verify_api_key_header)):
     """Fetch public profile for connectivity check"""
     try:
         if not generation_handler:

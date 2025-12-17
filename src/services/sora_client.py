@@ -262,20 +262,43 @@ class SoraClient:
         # 生成请求需要添加 sentinel token
         result = await self._make_request("POST", "/video_gen", token, json_data=json_data, add_sentinel_token=True)
 
-    async def fetch_public_profile(self, token: str, username: str = None) -> Dict[str, Any]:
+    async def fetch_public_profile(self, token: str, username: str) -> Dict[str, Any]:
         """Fetch public profile page to test connectivity and fingerprinting"""
         proxy_url = await self.proxy_manager.get_proxy_url()
         
-        if username:
-            profile_url = f"https://sora.chatgpt.com/profile/{username}"
-        else:
-            profile_url = "https://sora.chatgpt.com/profile/dohdrbble.codekidori"
+        target_username = username
+        profile_url = f"https://sora.chatgpt.com/backend/project_y/profile/username/{target_username}"
+        
+        # Parse token from JWT string (if it is a JWT) or use as is
+        # Note: The user provided example shows a JWT token being used directly as Bearer token
         
         headers = {
-            "Authorization": f"Bearer {token}"
+            "accept": "*/*",
+            "accept-language": "zh-CN,zh;q=0.9",
+            "authorization": f"Bearer {token}",
+            "dnt": "1",
+            "oai-device-id": "1a45dc88-a2bb-4f76-b8ee-f90e866ceb28", # Using fixed device ID from example
+            "oai-language": "zh-CN",
+            "priority": "u=1, i",
+            "referer": f"https://sora.chatgpt.com/profile/{target_username}",
+            "sec-ch-ua": '"Google Chrome";v="143", "Chromium";v="143", "Not A(Brand";v="24"',
+            "sec-ch-ua-arch": '"arm"',
+            "sec-ch-ua-bitness": '"64"',
+            "sec-ch-ua-full-version": '"143.0.7499.41"',
+            "sec-ch-ua-full-version-list": '"Google Chrome";v="143.0.7499.41", "Chromium";v="143.0.7499.41", "Not A(Brand";v="24.0.0.0"',
+            "sec-ch-ua-mobile": "?0",
+            "sec-ch-ua-model": '""',
+            "sec-ch-ua-platform": '"macOS"',
+            "sec-ch-ua-platform-version": '"15.6.1"',
+            "sec-fetch-dest": "empty",
+            "sec-fetch-mode": "cors",
+            "sec-fetch-site": "same-origin",
+            "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36"
         }
 
         async with AsyncSession() as session:
+            # Note: We keep impersonate="chrome" as it handles TLS fingerprinting which is crucial
+            # even when we manually set headers
             kwargs = {
                 "headers": headers,
                 "impersonate": "chrome",
@@ -286,15 +309,31 @@ class SoraClient:
                 kwargs["proxy"] = proxy_url
                 
             try:
+                debug_logger.log_info(f"Fetching profile for {target_username} using updated logic")
                 response = await session.get(profile_url, **kwargs)
                 
-                return {
-                    "status_code": response.status_code,
-                    "content_length": len(response.text),
-                    "title": response.text[response.text.find("<title>")+7:response.text.find("</title>")] if "<title>" in response.text else "Unknown",
-                    "success": response.status_code == 200,
-                    "content_preview": response.text[:5000]  # Return first 5000 chars to show content
-                }
+                # Check if response is JSON
+                try:
+                    json_response = response.json()
+                    is_json = True
+                    # If it's the backend API, a successful response is a JSON object with user details
+                    success = response.status_code == 200 and isinstance(json_response, dict)
+                except:
+                    is_json = False
+                    success = response.status_code == 200
+
+                # Return concise response
+                if success and is_json:
+                    return {
+                        "username": json_response.get("username"),
+                        "can_cameo": json_response.get("can_cameo", False),
+                        "success": True
+                    }
+                else:
+                    return {
+                        "success": False,
+                        "status_code": response.status_code
+                    }
             except Exception as e:
                 error_msg = f"Profile fetch failed: {str(e)}"
                 raise Exception(error_msg)
