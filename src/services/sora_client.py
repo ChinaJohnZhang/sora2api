@@ -12,6 +12,14 @@ from .proxy_manager import ProxyManager
 from ..core.config import config
 from ..core.logger import debug_logger
 
+class UpstreamAPIError(Exception):
+    """Exception raised for upstream API errors"""
+    def __init__(self, status_code: int, message: str, response_text: str = None):
+        self.status_code = status_code
+        self.message = message
+        self.response_text = response_text
+        super().__init__(message)
+
 class SoraClient:
     """Sora API client with proxy support"""
 
@@ -193,7 +201,22 @@ class SoraClient:
                     status_code=response.status_code,
                     response_text=response.text
                 )
-                raise Exception(error_msg)
+                # Parse error message from JSON if possible
+                try:
+                    error_json = response.json()
+                    if isinstance(error_json, dict) and "detail" in error_json:
+                         # Use detail from upstream if available
+                         error_msg = error_json["detail"]
+                    elif isinstance(error_json, dict) and "error" in error_json:
+                         # Handle OpenAI/Sora style errors
+                         if isinstance(error_json["error"], dict) and "message" in error_json["error"]:
+                             error_msg = error_json["error"]["message"]
+                         else:
+                             error_msg = str(error_json["error"])
+                except:
+                    pass
+                
+                raise UpstreamAPIError(response.status_code, error_msg, response.text)
 
             return response_json if response_json else response.json()
     

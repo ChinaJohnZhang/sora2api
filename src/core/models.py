@@ -163,6 +163,5 @@ class ChatCompletionResponse(BaseModel):
 class CharacterCreationRequest(BaseModel):
     """Request model for direct character creation"""
     video_url: str
-    name: Optional[str] = None  # Overrides the auto-generated name if provided (Note: API usually auto-generates)
     description: Optional[str] = None
     safety_notes: Optional[str] = None

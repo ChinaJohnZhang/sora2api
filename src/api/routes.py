@@ -8,6 +8,7 @@ import re
 from ..core.auth import verify_api_key_header
 from ..core.models import ChatCompletionRequest, CharacterCreationRequest
 from ..services.generation_handler import GenerationHandler, MODEL_CONFIG
+from ..services.sora_client import UpstreamAPIError
 
 router = APIRouter()
 
@@ -51,8 +52,13 @@ async def fetch_profile(username: str, api_key: str = Depends(verify_api_key_hea
             
         result = await generation_handler.fetch_profile(username=username)
         return JSONResponse(content=result)
+    except UpstreamAPIError as e:
+        raise HTTPException(status_code=e.status_code, detail=e.message)
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        error_str = str(e)
+        if "No available" in error_str:
+            raise HTTPException(status_code=503, detail=error_str)
+        raise HTTPException(status_code=500, detail=error_str)
 
 @router.get("/v1/models")
 async def list_models(api_key: str = Depends(verify_api_key_header)):
@@ -94,8 +100,17 @@ async def create_character(
             safety_notes=request.safety_notes
         )
         return JSONResponse(content=result)
+    except UpstreamAPIError as e:
+        raise HTTPException(status_code=e.status_code, detail=e.message)
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        error_str = str(e)
+        if "No available" in error_str:
+            raise HTTPException(status_code=503, detail=error_str)
+        if "Failed to download" in error_str:
+            raise HTTPException(status_code=400, detail=f"Download failed: {error_str}")
+        if "timeout" in error_str.lower():
+            raise HTTPException(status_code=504, detail=error_str)
+        raise HTTPException(status_code=500, detail=error_str)
 
 @router.post("/v1/chat/completions")
 async def create_chat_completion(
@@ -221,13 +236,32 @@ async def create_chat_completion(
                     ):
                         yield chunk
                 except Exception as e:
+                    # Determine error details
+                    error_type = "server_error"
+                    error_msg = str(e)
+                    error_code = None
+
+                    if isinstance(e, UpstreamAPIError):
+                        error_type = "upstream_error"
+                        error_msg = e.message
+                        error_code = e.status_code
+                    elif "No available" in error_msg:
+                        error_type = "service_unavailable"
+                        error_code = 503
+                    elif "Failed to download" in error_msg:
+                        error_type = "invalid_request_error"
+                        error_code = 400
+                    elif "timeout" in error_msg.lower():
+                        error_type = "gateway_timeout"
+                        error_code = 504
+
                     # Return OpenAI-compatible error format
                     error_response = {
                         "error": {
-                            "message": str(e),
-                            "type": "server_error",
+                            "message": error_msg,
+                            "type": error_type,
                             "param": None,
-                            "code": None
+                            "code": error_code
                         }
                     }
                     error_chunk = f'data: {json_module.dumps(error_response)}\n\n'
@@ -273,14 +307,40 @@ async def create_chat_completion(
                     }
                 )
 
-    except Exception as e:
-        # Return OpenAI-compatible error format
+    except UpstreamAPIError as e:
         return JSONResponse(
-            status_code=500,
+            status_code=e.status_code,
             content={
                 "error": {
-                    "message": str(e),
-                    "type": "server_error",
+                    "message": e.message,
+                    "type": "upstream_error",
+                    "param": None,
+                    "code": e.status_code
+                }
+            }
+        )
+    except Exception as e:
+        # Return OpenAI-compatible error format
+        status_code = 500
+        error_type = "server_error"
+        error_msg = str(e)
+        
+        if "No available" in error_msg:
+            status_code = 503
+            error_type = "service_unavailable"
+        elif "Failed to download" in error_msg:
+            status_code = 400
+            error_type = "invalid_request_error"
+        elif "timeout" in error_msg.lower():
+            status_code = 504
+            error_type = "gateway_timeout"
+
+        return JSONResponse(
+            status_code=status_code,
+            content={
+                "error": {
+                    "message": error_msg,
+                    "type": error_type,
                     "param": None,
                     "code": None
                 }
