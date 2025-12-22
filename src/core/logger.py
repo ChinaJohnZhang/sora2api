@@ -30,15 +30,21 @@ class DebugLogger:
         )
         file_handler.setLevel(logging.DEBUG)
         
+        # Create console handler
+        console_handler = logging.StreamHandler()
+        console_handler.setLevel(logging.DEBUG)
+        
         # Create formatter
         formatter = logging.Formatter(
             '%(message)s',
             datefmt='%Y-%m-%d %H:%M:%S'
         )
         file_handler.setFormatter(formatter)
+        console_handler.setFormatter(formatter)
         
-        # Add handler
+        # Add handlers
         self.logger.addHandler(file_handler)
+        self.logger.addHandler(console_handler)
         
         # Prevent propagation to root logger
         self.logger.propagate = False

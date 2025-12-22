@@ -7,7 +7,7 @@ import random
 import re
 from typing import Optional, AsyncGenerator, Dict, Any
 from datetime import datetime
-from .sora_client import SoraClient
+from .sora_client import SoraClient, UpstreamAPIError
 from .token_manager import TokenManager
 from .load_balancer import LoadBalancer
 from .file_cache import FileCache
@@ -1550,7 +1550,8 @@ class GenerationHandler:
                 # Check for failure
                 if current_status == "failed":
                     debug_logger.log_error(f"Cameo processing failed: {status_message}")
-                    raise Exception(f"Cameo processing failed: {status_message}")
+                    # Raise UpstreamAPIError directly to pass status code and message to API
+                    raise UpstreamAPIError(400, status_message, json.dumps(status))
 
                 # Check if processing is complete
                 # Primary condition: status_message == "Completed" means processing is done
@@ -1563,9 +1564,18 @@ class GenerationHandler:
                     debug_logger.log_info(f"Cameo processing completed (status: {current_status}, message: {status_message})")
                     return status
 
+            except UpstreamAPIError:
+                # Don't retry on explicit upstream errors (e.g. 400 Bad Request, policy violation)
+                raise
+
             except Exception as e:
-                consecutive_errors += 1
                 error_msg = str(e)
+
+                # If processing failed explicitly (from api), don't retry
+                if "Cameo processing failed" in error_msg:
+                    raise
+
+                consecutive_errors += 1
 
                 # Log error with context
                 debug_logger.log_error(

@@ -7,6 +7,7 @@ import json
 import re
 from ..core.auth import verify_api_key_header
 from ..core.models import ChatCompletionRequest, CharacterCreationRequest
+from ..core.logger import debug_logger
 from ..services.generation_handler import GenerationHandler, MODEL_CONFIG
 from ..services.sora_client import UpstreamAPIError
 
@@ -90,20 +91,32 @@ async def create_character(
     api_key: str = Depends(verify_api_key_header)
 ):
     """Create character from video (direct endpoint)"""
+    request_id = f"req_char_{int(datetime.now().timestamp())}"
+    
     try:
+        debug_logger.log_info(f"[{request_id}] Received character creation request | Video: {request.video_url} | Description: {request.description}")
+        
         if not generation_handler:
-            raise HTTPException(status_code=503, detail="Service not initialized")
+            error_msg = "Service not initialized"
+            debug_logger.log_error(f"[{request_id}] Service not initialized")
+            raise HTTPException(status_code=503, detail=error_msg)
             
         result = await generation_handler.create_character(
             video_url=request.video_url,
             description=request.description,
             safety_notes=request.safety_notes
         )
+        
+        debug_logger.log_info(f"[{request_id}] Character creation successful | Character ID: {result.get('character_id')}")
         return JSONResponse(content=result)
+        
     except UpstreamAPIError as e:
+        debug_logger.log_error(f"[{request_id}] Upstream API error: {e.message}")
         raise HTTPException(status_code=e.status_code, detail=e.message)
     except Exception as e:
         error_str = str(e)
+        debug_logger.log_error(f"[{request_id}] Character creation failed | Reason: {error_str}")
+        
         if "No available" in error_str:
             raise HTTPException(status_code=503, detail=error_str)
         if "Failed to download" in error_str or "Invalid URL scheme" in error_str:
