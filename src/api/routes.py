@@ -106,8 +106,8 @@ async def create_character(
         error_str = str(e)
         if "No available" in error_str:
             raise HTTPException(status_code=503, detail=error_str)
-        if "Failed to download" in error_str:
-            raise HTTPException(status_code=400, detail=f"Download failed: {error_str}")
+        if "Failed to download" in error_str or "Invalid URL scheme" in error_str:
+            raise HTTPException(status_code=400, detail=error_str)
         if "timeout" in error_str.lower():
             raise HTTPException(status_code=504, detail=error_str)
         raise HTTPException(status_code=500, detail=error_str)

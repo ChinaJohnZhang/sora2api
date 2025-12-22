@@ -177,24 +177,45 @@ class GenerationHandler:
             File bytes
         """
         from curl_cffi.requests import AsyncSession
+        
+        # Clean URL
+        url = url.strip()
+
+        # Basic URL validation
+        if not url.startswith("http://") and not url.startswith("https://"):
+            raise ValueError(f"Invalid URL scheme: {url}")
 
         proxy_url = None
         if self.proxy_manager:
             proxy_url = await self.proxy_manager.get_proxy_url()
 
+        debug_logger.log_info(f"Downloading file from: {url}")
+        
         kwargs = {
             "timeout": 30,
             "impersonate": "chrome"
         }
 
         if proxy_url:
+            debug_logger.log_info(f"Using proxy: {proxy_url}")
             kwargs["proxy"] = proxy_url
 
-        async with AsyncSession() as session:
-            response = await session.get(url, **kwargs)
-            if response.status_code != 200:
-                raise Exception(f"Failed to download file: {response.status_code}")
-            return response.content
+        try:
+            async with AsyncSession() as session:
+                response = await session.get(url, **kwargs)
+                if response.status_code != 200:
+                    raise Exception(f"Failed to download file: {response.status_code}")
+                return response.content
+        except Exception as e:
+            error_msg = str(e)
+            if "URL rejected" in error_msg and "Port number" in error_msg:
+                # Hint about potential proxy configuration issue
+                debug_logger.log_error(
+                    error_message=f"URL rejected by curl. Check proxy configuration or URL format. Proxy: {proxy_url}, URL: {url}",
+                    status_code=500,
+                    response_text=error_msg
+                )
+            raise
     
     async def check_token_availability(self, is_image: bool, is_video: bool, is_character_account: bool = False) -> bool:
         """Check if tokens are available for the given model type
