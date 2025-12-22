@@ -1545,7 +1545,12 @@ class GenerationHandler:
                 # Reset error counter on successful request
                 consecutive_errors = 0
 
-                debug_logger.log_info(f"Cameo status: {current_status} (message: {status_message}) (attempt {attempt + 1}/{max_attempts})")
+                debug_logger.log_info(f"Cameo status: {current_status} (message: {status_message}) (attempt {attempt + 1}/{max_attempts}) Full response: {json.dumps(status)}")
+
+                # Check for failure
+                if current_status == "failed":
+                    debug_logger.log_error(f"Cameo processing failed: {status_message}")
+                    raise Exception(f"Cameo processing failed: {status_message}")
 
                 # Check if processing is complete
                 # Primary condition: status_message == "Completed" means processing is done
