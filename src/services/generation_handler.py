@@ -1083,11 +1083,17 @@ class GenerationHandler:
             raise Exception("No available character account tokens for character creation")
 
         try:
-            debug_logger.log_info(f"Starting direct character creation for video: {video_url}")
+            debug_logger.log_info(f"Starting direct character creation | Video URL: {video_url} | Description: {description} | Safety Notes: {safety_notes}")
 
-            # Download video
-            video_bytes = await self._download_file(video_url)
-            debug_logger.log_info(f"Video downloaded, size: {len(video_bytes)} bytes")
+            # Handle video URL or base64
+            if video_url.startswith("data:") or (not video_url.startswith("http://") and not video_url.startswith("https://")):
+                debug_logger.log_info("Detected base64 video data, decoding...")
+                video_bytes = self._decode_base64_video(video_url)
+            else:
+                debug_logger.log_info(f"Downloading video from URL: {video_url}")
+                video_bytes = await self._download_file(video_url)
+
+            debug_logger.log_info(f"Video ready, size: {len(video_bytes)} bytes")
 
             # Step 1: Upload video
             cameo_id = await self.sora_client.upload_character_video(video_bytes, token_obj.token)
@@ -1136,7 +1142,7 @@ class GenerationHandler:
                 description=description,
                 safety_notes=safety_notes
             )
-            debug_logger.log_info(f"Character set as public")
+            debug_logger.log_info(f"Character creation successful | Character ID: {character_id} | Username: {username}")
 
             return {
                 "character_id": character_id,
@@ -1148,7 +1154,7 @@ class GenerationHandler:
 
         except Exception as e:
             debug_logger.log_error(
-                error_message=f"Direct character creation failed: {str(e)}",
+                error_message=f"Character creation failed | Reason: {str(e)}",
                 status_code=500,
                 response_text=str(e)
             )

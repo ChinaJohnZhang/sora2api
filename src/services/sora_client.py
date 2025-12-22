@@ -614,6 +614,18 @@ class SoraClient:
         )
 
         result = await self._make_request("POST", "/characters/upload", token, multipart=mp)
+        
+        # Check for failure status in response body (e.g. content policy violation)
+        if isinstance(result, dict) and result.get("status") == "failed":
+            error_msg = result.get("status_message", "Unknown upload error")
+            debug_logger.log_error(
+                error_message=f"Character upload failed: {error_msg}",
+                status_code=200,
+                response_text=str(result)
+            )
+            # Raise UpstreamAPIError with 400 status code since it's likely a client error (e.g. policy violation)
+            raise UpstreamAPIError(400, error_msg, str(result))
+            
         return result.get("id")
 
     async def get_cameo_status(self, cameo_id: str, token: str) -> Dict[str, Any]:
