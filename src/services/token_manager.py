@@ -480,22 +480,27 @@ class TokenManager:
                 "Referer": "https://sora.chatgpt.com/"
             }
 
-            kwargs = {
-                "headers": headers,
-                "timeout": 30,
-                "impersonate": "chrome"  # 自动生成 User-Agent 和浏览器指纹
-            }
-
-            if proxy_url:
-                kwargs["proxy"] = proxy_url
-                debug_logger.log_info(f"[ST_TO_AT] 使用代理: {proxy_url}")
-
             url = "https://sora.chatgpt.com/api/auth/session"
             debug_logger.log_info(f"[ST_TO_AT] 📡 请求 URL: {url}")
 
             try:
-                response = await session.get(url, **kwargs)
-                debug_logger.log_info(f"[ST_TO_AT] 📥 响应状态码: {response.status_code}")
+                response = None
+                max_attempts = 3
+                for attempt in range(max_attempts):
+                    kwargs = {
+                        "headers": headers,
+                        "timeout": 30,
+                        "impersonate": "chrome"
+                    }
+                    if proxy_url:
+                        kwargs["proxy"] = proxy_url
+                        debug_logger.log_info(f"[ST_TO_AT] 使用代理: {proxy_url}")
+                    response = await session.get(url, **kwargs)
+                    debug_logger.log_info(f"[ST_TO_AT] 📥 响应状态码: {response.status_code}")
+                    if response.status_code == 429 and attempt < max_attempts - 1:
+                        await asyncio.sleep(1 + attempt)
+                        continue
+                    break
 
                 if response.status_code != 200:
                     error_msg = f"Failed to convert ST to AT: {response.status_code}"
@@ -577,28 +582,33 @@ class TokenManager:
                 "Content-Type": "application/json"
             }
 
-            kwargs = {
-                "headers": headers,
-                "json": {
-                    "client_id": effective_client_id,
-                    "grant_type": "refresh_token",
-                    "redirect_uri": "com.openai.chat://auth0.openai.com/ios/com.openai.chat/callback",
-                    "refresh_token": refresh_token
-                },
-                "timeout": 30,
-                "impersonate": "chrome"  # 自动生成 User-Agent 和浏览器指纹
-            }
-
-            if proxy_url:
-                kwargs["proxy"] = proxy_url
-                debug_logger.log_info(f"[RT_TO_AT] 使用代理: {proxy_url}")
-
             url = "https://auth.openai.com/oauth/token"
             debug_logger.log_info(f"[RT_TO_AT] 📡 请求 URL: {url}")
 
             try:
-                response = await session.post(url, **kwargs)
-                debug_logger.log_info(f"[RT_TO_AT] 📥 响应状态码: {response.status_code}")
+                response = None
+                max_attempts = 3
+                for attempt in range(max_attempts):
+                    kwargs = {
+                        "headers": headers,
+                        "json": {
+                            "client_id": effective_client_id,
+                            "grant_type": "refresh_token",
+                            "redirect_uri": "com.openai.chat://auth0.openai.com/ios/com.openai.chat/callback",
+                            "refresh_token": refresh_token
+                        },
+                        "timeout": 30,
+                        "impersonate": "chrome"
+                    }
+                    if proxy_url:
+                        kwargs["proxy"] = proxy_url
+                        debug_logger.log_info(f"[RT_TO_AT] 使用代理: {proxy_url}")
+                    response = await session.post(url, **kwargs)
+                    debug_logger.log_info(f"[RT_TO_AT] 📥 响应状态码: {response.status_code}")
+                    if response.status_code == 429 and attempt < max_attempts - 1:
+                        await asyncio.sleep(1 + attempt)
+                        continue
+                    break
 
                 if response.status_code != 200:
                     error_msg = f"Failed to convert RT to AT: {response.status_code}"

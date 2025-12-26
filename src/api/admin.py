@@ -341,6 +341,45 @@ async def delete_token(token_id: int, token: str = Depends(verify_admin_token)):
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
+@router.post("/api/tokens/refresh-expired")
+async def refresh_expired_tokens(token: str = Depends(verify_admin_token)):
+    try:
+        tokens = await token_manager.get_all_tokens()
+        now = datetime.now()
+        refreshed = 0
+        failed = 0
+        errors = []
+        for t in tokens:
+            if not t.expiry_time:
+                continue
+            if t.expiry_time > now:
+                continue
+            new_at = None
+            new_rt = None
+            try:
+                if t.rt:
+                    r = await token_manager.rt_to_at(t.rt, client_id=t.client_id)
+                    new_at = r.get("access_token")
+                    new_rt = r.get("refresh_token") or t.rt
+                if not new_at and t.st:
+                    r = await token_manager.st_to_at(t.st)
+                    new_at = r.get("access_token")
+                if new_at:
+                    await token_manager.update_token(t.id, token=new_at, rt=new_rt)
+                    await token_manager.enable_token(t.id)
+                    refreshed += 1
+                else:
+                    failed += 1
+                    errors.append({"token_id": t.id, "email": t.email, "reason": "no valid ST/RT"})
+                    await token_manager.disable_token(t.id)
+            except Exception as e:
+                failed += 1
+                errors.append({"token_id": t.id, "email": t.email, "reason": str(e)})
+                await token_manager.disable_token(t.id)
+        return {"success": True, "refreshed": refreshed, "failed": failed, "errors": errors}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 @router.post("/api/tokens/import")
 async def import_tokens(request: ImportTokensRequest, token: str = Depends(verify_admin_token)):
     """Import tokens in append mode (update if exists, add if not)"""
